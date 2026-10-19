@@ -1,0 +1,6 @@
+{
+  "name": "HeatShield AI — Traffic Junction Heat Risk & Smart Duty Planner",
+  "description": "Occupational climate-safety and smart duty-planning platform for traffic police departments, supervisory inspectors, and municipal authorities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_NUGEN_API_INTEGRATION"]
+}
