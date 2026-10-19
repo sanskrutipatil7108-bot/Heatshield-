@@ -1,0 +1,513 @@
+import { 
+  Junction, 
+  DutyPlan, 
+  OfficerAssignment, 
+  CoolingPriority, 
+  LocationInfo,
+  PredictionRecord 
+} from '../types';
+import { calculateHeatRiskScore, getRecommendedAction } from '../utils/heatRisk';
+
+export const INITIAL_PUNE_LOCATION: LocationInfo = {
+  name: 'Pune, Maharashtra, India',
+  city: 'Pune',
+  state: 'Maharashtra',
+  country: 'India',
+  lat: 18.5204,
+  lon: 73.8567,
+  isLive: false,
+  source: 'Simulated Baseline (Pune Traffic Prototype) - DEMO DATA',
+  lastRefreshed: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+};
+
+/**
+ * 5 Clearly Identified Simulated Pune Traffic Junctions for the Demonstration:
+ * 1. JM Road Junction (Low Risk)
+ * 2. Deccan Gymkhana Junction (Moderate Risk)
+ * 3. Shivajinagar Junction (Moderate Risk)
+ * 4. Swargate Junction (High Risk)
+ * 5. Hadapsar Junction (High Risk)
+ * 
+ * NOTE: These are explicitly labeled demonstration records, not live sensor installations.
+ */
+export const INITIAL_PUNE_JUNCTIONS: Junction[] = [
+  {
+    id: 'pune-jm-road',
+    name: 'JM Road Junction',
+    neighborhood: 'Jungli Maharaj Road & Shivajinagar Commercial Axis',
+    lat: 18.5246,
+    lon: 73.8478,
+    temp: 36.2,
+    humidity: 40,
+    traffic: 'Moderate',
+    shadePercent: 35,
+    riskScore: 42,
+    riskCategory: 'Low',
+    action: 'Standard duty hydration; maintain baseline water refills; normal staff monitoring and wellbeing check-ins.',
+    vulnerableStaffCount: 8,
+    outdoorDutyDurationMin: 90,
+    drinkingWaterNearby: true,
+    hasMistingFan: false,
+    hasShadeShelter: true,
+    dataSource: 'Simulated Pune Telemetry - DEMO DATA',
+    lastUpdated: '5 mins ago (Simulated)',
+    notes: 'Avenue trees provide partial canopy; pedestrian movement is moderate along western pavement.',
+  },
+  {
+    id: 'pune-deccan',
+    name: 'Deccan Gymkhana Junction',
+    neighborhood: 'FC Road & Karve Road Nexus',
+    lat: 18.5173,
+    lon: 73.8415,
+    temp: 38.0,
+    humidity: 46,
+    traffic: 'Moderate',
+    shadePercent: 25,
+    riskScore: 60,
+    riskCategory: 'Moderate',
+    action: 'Enforce 350ml hydration every 30 min; rotate traffic marshals from asphalt at 14:00.',
+    vulnerableStaffCount: 10,
+    outdoorDutyDurationMin: 60,
+    drinkingWaterNearby: true,
+    hasMistingFan: false,
+    hasShadeShelter: true,
+    dataSource: 'Simulated Pune Telemetry - DEMO DATA',
+    lastUpdated: '8 mins ago (Simulated)',
+    notes: 'FC Road approach has intermittent tree shadows. Heavy pedestrian crossings near bus stop.',
+  },
+  {
+    id: 'pune-shivajinagar',
+    name: 'Shivajinagar Junction',
+    neighborhood: 'Shivajinagar Metro Interchange & Court Road',
+    lat: 18.5314,
+    lon: 73.8446,
+    temp: 38.8,
+    humidity: 48,
+    traffic: 'Heavy',
+    shadePercent: 18,
+    riskScore: 68,
+    riskCategory: 'Moderate',
+    action: 'Rotate officers every 60 min; deploy UV caps with neck shades; provide 500ml cold water.',
+    vulnerableStaffCount: 12,
+    outdoorDutyDurationMin: 60,
+    drinkingWaterNearby: true,
+    hasMistingFan: true,
+    hasShadeShelter: true,
+    dataSource: 'Simulated Pune Telemetry - DEMO DATA',
+    lastUpdated: '10 mins ago (Simulated)',
+    notes: 'Elevated flyover construction restricts natural breeze. Moderate thermal trapping under bridge.',
+  },
+  {
+    id: 'pune-swargate',
+    name: 'Swargate Junction',
+    neighborhood: 'Swargate Multimodal Transit & Bus Terminal',
+    lat: 18.5018,
+    lon: 73.8586,
+    temp: 41.2,
+    humidity: 54,
+    traffic: 'Gridlock',
+    shadePercent: 8,
+    riskScore: 86,
+    riskCategory: 'High',
+    action: 'Mandatory 15-min shaded rest every 45 min; chilled ORS electrolytes; active water misting canopy.',
+    vulnerableStaffCount: 14,
+    outdoorDutyDurationMin: 45,
+    drinkingWaterNearby: false,
+    hasMistingFan: false,
+    hasShadeShelter: false,
+    dataSource: 'Simulated Pune Telemetry - DEMO DATA',
+    lastUpdated: '3 mins ago (Simulated)',
+    notes: 'Massive asphalt footprint reradiates heavy heat. High diesel bus exhaust concentration.',
+  },
+  {
+    id: 'pune-hadapsar',
+    name: 'Hadapsar Junction',
+    neighborhood: 'Solapur Road Industrial Freight Gateway',
+    lat: 18.5029,
+    lon: 73.9272,
+    temp: 42.0,
+    humidity: 50,
+    traffic: 'Heavy',
+    shadePercent: 10,
+    riskScore: 89,
+    riskCategory: 'High',
+    action: 'CRITICAL HEAT ADVISORY: Limit unshaded post to 40 min; supply cold ORS; misting fan required.',
+    vulnerableStaffCount: 12,
+    outdoorDutyDurationMin: 40,
+    drinkingWaterNearby: false,
+    hasMistingFan: false,
+    hasShadeShelter: false,
+    dataSource: 'Simulated Pune Telemetry - DEMO DATA',
+    lastUpdated: '2 mins ago (Simulated)',
+    notes: 'Wide 6-lane asphalt highway corridor with heavy freight diesel exhaust and zero natural canopy.',
+  },
+];
+
+export const INITIAL_DUTY_PLANS: DutyPlan[] = [
+  {
+    id: 'dp-1',
+    junctionId: 'pune-swargate',
+    junctionName: 'Swargate Junction',
+    shiftName: 'Peak Heat Afternoon Shift',
+    shiftHours: '11:00 – 15:00',
+    riskCategory: 'High',
+    personnelCount: 6,
+    hydrationTargetMlPerHour: 650,
+    restBreakIntervalMin: 45,
+    rotationHours: 1.5,
+    supervisorStatus: 'Action Required',
+    supervisorNotes: 'High solar radiant load on south flyover approach. Extra relief marshal assigned for 15-minute rest rotations.',
+    recommendations: [
+      'Prohibit solo officer standing on exposed tarmac island without overhead canopy.',
+      'Provide chilled electrolytes (ORS sachets) at the traffic control booth.',
+      'Mandatory wellness check-in at 13:00 and 14:30.',
+    ],
+    tasks: [
+      { id: 't-1', text: 'Distribute insulated 2-liter hydration flasks with ORS', completed: true, category: 'hydration' },
+      { id: 't-2', text: 'Confirm shaded cooling awning erected at southern signal island', completed: false, category: 'ppe' },
+      { id: 't-3', text: 'Schedule 45-minute alternating rotation with relief marshal', completed: false, category: 'rotation' },
+      { id: 't-4', text: 'Verify nearest primary health center emergency standby contacts', completed: true, category: 'checkin' },
+    ],
+  },
+  {
+    id: 'dp-2',
+    junctionId: 'pune-hadapsar',
+    junctionName: 'Hadapsar Junction',
+    shiftName: 'Peak Heat Afternoon Shift',
+    shiftHours: '11:00 – 15:00',
+    riskCategory: 'High',
+    personnelCount: 5,
+    hydrationTargetMlPerHour: 600,
+    restBreakIntervalMin: 40,
+    rotationHours: 1.5,
+    supervisorStatus: 'Approved',
+    supervisorNotes: 'Industrial freight heat load. Team provided with UV reflective caps and wet cooling neck wraps.',
+    recommendations: [
+      'Relieve officers at 40-minute intervals to air-cooled patrol vehicle or booth.',
+      'Ensure on-site cold water dispenser is refilled before 11:30.',
+    ],
+    tasks: [
+      { id: 't-5', text: 'Pre-shift hydration briefing and core temperature check', completed: true, category: 'checkin' },
+      { id: 't-6', text: 'Equip officers with wide-brim UV hats and cooling neck towels', completed: true, category: 'ppe' },
+      { id: 't-7', text: 'Coordinate with municipal tanker for road wetting mist', completed: true, category: 'rotation' },
+    ],
+  },
+  {
+    id: 'dp-3',
+    junctionId: 'pune-shivajinagar',
+    junctionName: 'Shivajinagar Junction',
+    shiftName: 'Morning Peak Traffic Shift',
+    shiftHours: '07:00 – 11:00',
+    riskCategory: 'Moderate',
+    personnelCount: 4,
+    hydrationTargetMlPerHour: 400,
+    restBreakIntervalMin: 60,
+    rotationHours: 2.0,
+    supervisorStatus: 'Approved',
+    supervisorNotes: 'Moderate heat stress; temperature rises rapidly after 09:30. Hydration checkpoint established.',
+    recommendations: [
+      'Ensure 350ml water consumed every 30 minutes.',
+      'Transition to covered umbrella signal posts at 10:00.',
+    ],
+    tasks: [
+      { id: 't-8', text: 'Inspect chilled drinking water dispenser at bus stop', completed: true, category: 'hydration' },
+      { id: 't-9', text: 'Confirm emergency first-aid kit in control booth', completed: true, category: 'checkin' },
+    ],
+  },
+];
+
+export const INITIAL_OFFICER_ASSIGNMENTS: OfficerAssignment[] = [
+  {
+    id: 'asg-1',
+    officerName: 'ASI Ramesh Kulkarni',
+    badgeNumber: 'TP-4102',
+    junctionId: 'pune-swargate',
+    junctionName: 'Swargate Junction',
+    shiftName: 'Peak Heat Midday Shift',
+    shiftHours: '11:00 – 15:00',
+    riskCategory: 'High',
+    healthSensitivity: 'Standard',
+    durationHours: 4,
+    rotationIntervalMin: 45,
+    breakDurationMin: 15,
+    hydrationTargetMl: 650,
+    status: 'Active',
+    assignedDate: new Date().toISOString().split('T')[0],
+    notes: 'Supervising Swargate south terminal crossing; rotated every 45 min.',
+  },
+  {
+    id: 'asg-2',
+    officerName: 'HC Sachin Shinde',
+    badgeNumber: 'TP-4188',
+    junctionId: 'pune-swargate',
+    junctionName: 'Swargate Junction',
+    shiftName: 'Peak Heat Midday Shift',
+    shiftHours: '11:00 – 15:00',
+    riskCategory: 'High',
+    healthSensitivity: 'Heat-Sensitive',
+    durationHours: 4,
+    rotationIntervalMin: 30,
+    breakDurationMin: 15,
+    hydrationTargetMl: 700,
+    status: 'Resting',
+    assignedDate: new Date().toISOString().split('T')[0],
+    notes: 'Assigned to shaded transit booth rotation due to heat sensitivity.',
+  },
+  {
+    id: 'asg-3',
+    officerName: 'PC Anita More',
+    badgeNumber: 'TP-4251',
+    junctionId: 'pune-hadapsar',
+    junctionName: 'Hadapsar Junction',
+    shiftName: 'Peak Heat Midday Shift',
+    shiftHours: '11:00 – 15:00',
+    riskCategory: 'High',
+    healthSensitivity: 'Standard',
+    durationHours: 4,
+    rotationIntervalMin: 40,
+    breakDurationMin: 20,
+    hydrationTargetMl: 600,
+    status: 'Active',
+    assignedDate: new Date().toISOString().split('T')[0],
+    notes: 'Managing heavy freight turning lane; provided with wet cooling wrap.',
+  },
+  {
+    id: 'asg-4',
+    officerName: 'PC Nilesh Gaikwad',
+    badgeNumber: 'TP-4310',
+    junctionId: 'pune-shivajinagar',
+    junctionName: 'Shivajinagar Junction',
+    shiftName: 'Morning Shift',
+    shiftHours: '07:00 – 11:00',
+    riskCategory: 'Moderate',
+    healthSensitivity: 'Standard',
+    durationHours: 4,
+    rotationIntervalMin: 60,
+    breakDurationMin: 15,
+    hydrationTargetMl: 450,
+    status: 'Completed',
+    assignedDate: new Date().toISOString().split('T')[0],
+    notes: 'Completed morning duty cycle without thermal stress complaints.',
+  },
+  {
+    id: 'asg-5',
+    officerName: 'HC Vijay Patil',
+    badgeNumber: 'TP-4195',
+    junctionId: 'pune-jm-road',
+    junctionName: 'JM Road Junction',
+    shiftName: 'Late Afternoon Shift',
+    shiftHours: '15:00 – 19:00',
+    riskCategory: 'Low',
+    healthSensitivity: 'Standard',
+    durationHours: 4,
+    rotationIntervalMin: 90,
+    breakDurationMin: 15,
+    hydrationTargetMl: 350,
+    status: 'Scheduled',
+    assignedDate: new Date().toISOString().split('T')[0],
+    notes: 'Scheduled for evening peak traffic control; tree canopy available.',
+  },
+];
+
+export const INITIAL_COOLING_PRIORITIES: CoolingPriority[] = [
+  {
+    id: 'cp-1',
+    rank: 1,
+    junctionId: 'pune-hadapsar',
+    junctionName: 'Hadapsar Junction',
+    riskScore: 89,
+    riskCategory: 'High',
+    facilityType: 'Misting Shade Awning',
+    urgency: 'Immediate',
+    status: 'Needed',
+    reason: 'Wide open 6-lane asphalt highway corridor with extreme solar radiance (42.0°C) and heavy diesel truck emissions.',
+    proposedAction: 'Install heavy-duty UV reflective shade canopy and high-pressure water misting nozzles at central traffic island.',
+    targetCompletionDays: 2,
+    lastUpdated: 'Today',
+  },
+  {
+    id: 'cp-2',
+    rank: 2,
+    junctionId: 'pune-swargate',
+    junctionName: 'Swargate Junction',
+    riskScore: 86,
+    riskCategory: 'High',
+    facilityType: 'Drinking Water Kiosk',
+    urgency: 'Immediate',
+    status: 'In Progress',
+    reason: 'Severe asphalt heat reradiation, 14 outdoor officers assigned without on-site cold drinking water dispensary.',
+    proposedAction: 'Connect chilled RO drinking water dispenser with ORS sachet replenishment station at police chowki.',
+    targetCompletionDays: 3,
+    lastUpdated: 'Yesterday',
+  },
+  {
+    id: 'cp-3',
+    rank: 3,
+    junctionId: 'pune-shivajinagar',
+    junctionName: 'Shivajinagar Junction',
+    riskScore: 68,
+    riskCategory: 'Moderate',
+    facilityType: 'Air-Cooled Transit Shelter',
+    urgency: 'High',
+    status: 'Installed',
+    reason: 'High pedestrian and commuter volume; elevated flyover traps heat between concrete pillars.',
+    proposedAction: 'Maintain and inspect existing air-cooler unit in traffic police cabin and refill water reservoir daily.',
+    targetCompletionDays: 5,
+    lastUpdated: '2 days ago',
+  },
+  {
+    id: 'cp-4',
+    rank: 4,
+    junctionId: 'pune-deccan',
+    junctionName: 'Deccan Gymkhana Junction',
+    riskScore: 60,
+    riskCategory: 'Moderate',
+    facilityType: 'Drinking Water Kiosk',
+    urgency: 'Scheduled',
+    status: 'Installed',
+    reason: 'Commercial hub with good tree canopy, but high footfall increases demand on roadside water supply.',
+    proposedAction: 'Regular maintenance of municipal water filtration kiosk near Sambhaji Park crossing.',
+    targetCompletionDays: 8,
+    lastUpdated: '3 days ago',
+  },
+  {
+    id: 'cp-5',
+    rank: 5,
+    junctionId: 'pune-jm-road',
+    junctionName: 'JM Road Junction',
+    riskScore: 42,
+    riskCategory: 'Low',
+    facilityType: 'ORS & First-Aid Standby',
+    urgency: 'Scheduled',
+    status: 'Installed',
+    reason: 'Commercial avenue with tree canopy; officers need quick access to emergency heat exhaustion packs during afternoon shifts.',
+    proposedAction: 'Stock dedicated heatwave first-aid kit with instant cold packs, ORS sachets, and digital thermometer.',
+    targetCompletionDays: 10,
+    lastUpdated: '4 days ago',
+  },
+];
+
+export const INITIAL_PREDICTIONS: PredictionRecord[] = [
+  {
+    id: 'pred-1',
+    timestamp: '11:45 AM',
+    junctionName: 'Swargate Junction',
+    temperature: 41.2,
+    humidity: 54,
+    traffic: 'Gridlock',
+    shadePercent: 8,
+    sunExposure: 'Direct Intense Sunlight',
+    windSpeed: 'Calm (< 5 km/h)',
+    riskScore: 86,
+    riskCategory: 'High',
+    explanation: 'Extreme ambient temperature (+52 pts) combined with gridlock vehicle exhaust (+18 pts) and low shade.',
+  },
+  {
+    id: 'pred-2',
+    timestamp: '10:15 AM',
+    junctionName: 'Shivajinagar Junction',
+    temperature: 38.8,
+    humidity: 48,
+    traffic: 'Heavy',
+    shadePercent: 18,
+    sunExposure: 'Afternoon Glare',
+    windSpeed: 'Light Breeze (5–15 km/h)',
+    riskScore: 68,
+    riskCategory: 'Moderate',
+    explanation: 'Elevated temperature (+43 pts) partially moderated by light breeze and 18% tree canopy.',
+  },
+  {
+    id: 'pred-3',
+    timestamp: '09:00 AM',
+    junctionName: 'JM Road Junction',
+    temperature: 36.2,
+    humidity: 40,
+    traffic: 'Moderate',
+    shadePercent: 35,
+    sunExposure: 'Partial Sun / Filtered Light',
+    windSpeed: 'Moderate Wind (15–25 km/h)',
+    riskScore: 42,
+    riskCategory: 'Low',
+    explanation: 'Mild morning conditions with adequate shade cover and comfortable wind circulation.',
+  },
+];
+
+export function generateLocalizedJunctions(
+  location: LocationInfo,
+  baseTemp: number,
+  baseHumidity: number
+): Junction[] {
+  // If Pune is selected, return verified demonstration junctions
+  if (location.city.toLowerCase().includes('pune')) {
+    return INITIAL_PUNE_JUNCTIONS.map((j) => {
+      const { score, category } = calculateHeatRiskScore(j.temp, j.humidity, j.traffic, j.shadePercent);
+      return {
+        ...j,
+        riskScore: score,
+        riskCategory: category,
+        action: getRecommendedAction(category, j.temp),
+      };
+    });
+  }
+
+  // Localized simulated junctions for other cities if user tests other locations
+  const neighborhoods = [
+    'Central Commercial District',
+    'Major Railway Plaza Signal',
+    'Industrial Highway Ring Road',
+    'Bus Terminal Multimodal Hub',
+    'University & Administrative Corridor',
+  ];
+
+  return neighborhoods.map((name, idx) => {
+    const tempOffset = (idx - 2) * 1.1;
+    const humOffset = (idx % 2 === 0 ? 3 : -3);
+    const temp = Math.round((baseTemp + tempOffset) * 10) / 10;
+    const humidity = Math.max(15, Math.min(95, Math.round(baseHumidity + humOffset)));
+    const traffic = idx === 0 ? 'Gridlock' : idx === 1 ? 'Heavy' : idx === 2 ? 'Heavy' : 'Moderate';
+    const shade = idx === 0 ? 10 : idx === 1 ? 25 : idx === 2 ? 5 : 35;
+    const { score, category } = calculateHeatRiskScore(temp, humidity, traffic, shade);
+
+    return {
+      id: `${location.city.toLowerCase()}-j${idx + 1}`,
+      name: `${location.city} ${name}`,
+      neighborhood: `${location.city} Urban Sector ${idx + 1}`,
+      lat: location.lat + (idx - 2) * 0.015,
+      lon: location.lon + (idx - 2) * 0.012,
+      temp,
+      humidity,
+      traffic,
+      shadePercent: shade,
+      riskScore: score,
+      riskCategory: category,
+      action: getRecommendedAction(category, temp),
+      vulnerableStaffCount: 8 + idx * 2,
+      outdoorDutyDurationMin: category === 'High' ? 45 : category === 'Moderate' ? 60 : 90,
+      drinkingWaterNearby: idx % 2 === 1,
+      hasMistingFan: idx === 3,
+      hasShadeShelter: shade > 20,
+      dataSource: 'Simulated Urban Telemetry - DEMO DATA',
+      lastUpdated: 'Just now (Simulated)',
+    };
+  });
+}
+
+export interface PresetCity {
+  name: string;
+  city: string;
+  state: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+export const GLOBAL_PRESET_CITIES: PresetCity[] = [
+  { name: 'Pune, Maharashtra, India', city: 'Pune', state: 'Maharashtra', country: 'India', lat: 18.5204, lon: 73.8567 },
+  { name: 'Mumbai, Maharashtra, India', city: 'Mumbai', state: 'Maharashtra', country: 'India', lat: 19.0760, lon: 72.8777 },
+  { name: 'Nagpur, Maharashtra, India', city: 'Nagpur', state: 'Maharashtra', country: 'India', lat: 21.1458, lon: 79.0882 },
+  { name: 'Nashik, Maharashtra, India', city: 'Nashik', state: 'Maharashtra', country: 'India', lat: 19.9975, lon: 73.7898 },
+  { name: 'Chhatrapati Sambhajinagar, Maharashtra, India', city: 'Chhatrapati Sambhajinagar', state: 'Maharashtra', country: 'India', lat: 19.8762, lon: 75.3433 },
+  { name: 'New Delhi, Delhi, India', city: 'New Delhi', state: 'Delhi', country: 'India', lat: 28.6139, lon: 77.2090 },
+  { name: 'Ahmedabad, Gujarat, India', city: 'Ahmedabad', state: 'Gujarat', country: 'India', lat: 23.0225, lon: 72.5714 },
+  { name: 'Bengaluru, Karnataka, India', city: 'Bengaluru', state: 'Karnataka', country: 'India', lat: 12.9716, lon: 77.5946 },
+];

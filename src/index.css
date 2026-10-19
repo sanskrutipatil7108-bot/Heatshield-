@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark body {
+    background-color: #0B1120;
+    color: #F1F5F9;
+  }
+
+  /* High Contrast Accessibility Theme */
+  html.high-contrast body {
+    background-color: #000000 !important;
+    color: #FFFFFF !important;
+  }
+
+  html.high-contrast aside,
+  html.high-contrast header,
+  html.high-contrast .bg-white,
+  html.high-contrast .bg-slate-900,
+  html.high-contrast .bg-slate-950,
+  html.high-contrast .bg-slate-800 {
+    background-color: #0A0A0A !important;
+    border-color: #E2E8F0 !important;
+    color: #FFFFFF !important;
+  }
+
+  html.high-contrast button {
+    border-width: 2px !important;
+  }
+
+  html.high-contrast .text-slate-400,
+  html.high-contrast .text-slate-500,
+  html.high-contrast .text-slate-600 {
+    color: #CBD5E1 !important;
+  }
+
+  html.high-contrast input,
+  html.high-contrast select,
+  html.high-contrast textarea {
+    background-color: #121212 !important;
+    color: #FFFFFF !important;
+    border: 2px solid #FDE047 !important;
+  }
+}
+
+/* Custom Scrollbar for sleek dashboard UI */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Fix Leaflet map z-index inside dashboard */
+.leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 20 !important;
+}
+
+/* Print Stylesheet for Reports */
+@media print {
+  aside, nav, button, .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  body {
+    background: #FFF !important;
+    color: #000 !important;
+  }
+  .card-print {
+    box-shadow: none !important;
+    border: 1px solid #CCC !important;
+    break-inside: avoid;
+  }
+}
+
+.ai-markdown {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.ai-markdown h1,
+.ai-markdown h2,
+.ai-markdown h3 {
+  margin: 16px 0 8px;
+  font-weight: 700;
+}
+
+.ai-markdown p {
+  margin: 10px 0;
+}
+
+.ai-markdown ul,
+.ai-markdown ol {
+  padding-left: 24px;
+  margin: 10px 0;
+}
+
+.ai-markdown ul {
+  list-style-type: disc;
+}
+
+.ai-markdown ol {
+  list-style-type: decimal;
+}
+
+.ai-markdown strong {
+  font-weight: 700;
+}
+
+.ai-markdown hr {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+}
